@@ -275,12 +275,19 @@ func (r *TCPServer) handleConnection(conn net.Conn, db *gorm.DB) {
 		if err != nil {
 			logger.Error.Printf("[%s]: marshaling error (%v)", logKey, err)
 		} else {
+			totalData := len(res.Packet.Data)
+			if totalData < 10 {
+				logger.Info.Printf("[%s]: ignore processing data, total data to small %d", logKey, totalData)
+				return
+			}
 			logger.Info.Printf("[%s]: decoded: %s", logKey, string(jsonData))
+
 			dataCodec := &model.DataCodec{
 				Imei:      imei,
-				TotalData: len(res.Packet.Data),
+				TotalData: totalData,
 				CreatedAt: time.Now(),
 			}
+
 			// Save DataCodec entry to the database first
 			if err := db.Create(dataCodec).Error; err != nil {
 				logger.Error.Printf("[%s]: error saving data codec to database (%v)", logKey, err)
