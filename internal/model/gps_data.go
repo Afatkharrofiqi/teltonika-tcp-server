@@ -4,10 +4,9 @@ import (
 	"time"
 )
 
-// GPSData represents the structure of the data to be saved in the database.
 type GPSData struct {
 	ID          uint      `gorm:"primaryKey"`     // Auto-incremented ID
-	Imei        string    `gorm:"index"`          // Index for quick lookups by IMEI
+	DataCodecID uint      `gorm:"index"`          // Foreign key to reference DataCodec
 	TimestampMs uint64    `gorm:"not null"`       // Milliseconds timestamp
 	Lng         float64   `gorm:"not null"`       // Longitude
 	Lat         float64   `gorm:"not null"`       // Latitude

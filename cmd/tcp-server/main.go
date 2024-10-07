@@ -18,7 +18,7 @@ import (
 	"time"
 
 	"github.com/Afatkharrofiqi/teltonika-tcp-server/internal/config"
-	"github.com/Afatkharrofiqi/teltonika-tcp-server/internal/models"
+	"github.com/Afatkharrofiqi/teltonika-tcp-server/internal/model"
 	"github.com/alim-zanibekov/teltonika"
 	"github.com/alim-zanibekov/teltonika/ioelements"
 	"gorm.io/gorm"
@@ -276,6 +276,16 @@ func (r *TCPServer) handleConnection(conn net.Conn, db *gorm.DB) {
 			logger.Error.Printf("[%s]: marshaling error (%v)", logKey, err)
 		} else {
 			logger.Info.Printf("[%s]: decoded: %s", logKey, string(jsonData))
+			dataCodec := &model.DataCodec{
+				Imei:      imei,
+				TotalData: len(res.Packet.Data),
+				CreatedAt: time.Now(),
+			}
+			// Save DataCodec entry to the database first
+			if err := db.Create(dataCodec).Error; err != nil {
+				logger.Error.Printf("[%s]: error saving data codec to database (%v)", logKey, err)
+				return
+			}
 			for i, data := range res.Packet.Data {
 				elements := make([]string, len(data.Elements))
 				for j, element := range data.Elements {
@@ -293,8 +303,8 @@ func (r *TCPServer) handleConnection(conn net.Conn, db *gorm.DB) {
 					continue
 				}
 
-				gpsData := &models.GPSData{
-					Imei:        imei,
+				gpsData := &model.GPSData{
+					DataCodecID: dataCodec.ID,
 					TimestampMs: data.TimestampMs,
 					Lng:         data.Lng,
 					Lat:         data.Lat,
@@ -310,8 +320,6 @@ func (r *TCPServer) handleConnection(conn net.Conn, db *gorm.DB) {
 				// Save to database
 				if err := db.Create(gpsData).Error; err != nil {
 					logger.Error.Printf("[%s]: error saving gps data to database (%v)", logKey, err)
-				} else {
-					logger.Info.Printf("[%s]: gps data saved to database: %+v", logKey, gpsData)
 				}
 			}
 		}
