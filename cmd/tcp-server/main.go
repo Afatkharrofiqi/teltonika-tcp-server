@@ -276,10 +276,10 @@ func (r *TCPServer) handleConnection(conn net.Conn, db *gorm.DB) {
 			logger.Error.Printf("[%s]: marshaling error (%v)", logKey, err)
 		} else {
 			totalData := len(res.Packet.Data)
-			if totalData < 10 {
-				logger.Info.Printf("[%s]: ignore processing data, total data to small %d", logKey, totalData)
-				return
-			}
+			// if totalData < 10 {
+			// 	logger.Info.Printf("[%s]: ignore processing data, total data to small %d", logKey, totalData)
+			// 	return
+			// }
 			logger.Info.Printf("[%s]: decoded: %s", logKey, string(jsonData))
 
 			dataCodec := &model.DataCodec{
@@ -293,16 +293,22 @@ func (r *TCPServer) handleConnection(conn net.Conn, db *gorm.DB) {
 				logger.Error.Printf("[%s]: error saving data codec to database (%v)", logKey, err)
 				return
 			}
-			for i, data := range res.Packet.Data {
-				elements := make([]string, len(data.Elements))
-				for j, element := range data.Elements {
+			for _, data := range res.Packet.Data {
+				elements := make(map[string]interface{})
+				for _, element := range data.Elements {
 					it, err := ioelements.DefaultDecoder().Decode("*", element.Id, element.Value)
 					if err != nil {
 						break
 					}
-					elements[j] = it.String()
+
+					// for element id 385 or beacon extract the ids
+					if element.Id == 385 {
+						elements[it.Definition.Name] = extractBeacons(it.Value.(string))
+						continue
+					}
+					elements[it.Definition.Name] = it.Value
 				}
-				logger.Info.Printf("[%s]: io elements [frame #%d]: %s", logKey, i, strings.Join(elements, ", "))
+
 				// Convert elements to JSON string
 				elementsJSON, err := json.Marshal(elements)
 				if err != nil {
@@ -335,6 +341,57 @@ func (r *TCPServer) handleConnection(conn net.Conn, db *gorm.DB) {
 			r.OnPacket(imei, res.Packet)
 		}
 	}
+}
+
+// Beacon represents a single beacon with ID and RSSI value.
+type Beacon struct {
+	ID   string `json:"id"`
+	RSSI int8   `json:"rssi"`
+}
+
+// Function to extract and return Beacon IDs and RSSI values as a slice of Beacon structs
+func extractBeacons(rawData string) []Beacon {
+	// Convert the raw hex string to a byte array
+	data, err := hex.DecodeString(rawData)
+	if err != nil {
+		fmt.Println("Failed to decode hex string:", err)
+		return nil
+	}
+
+	// Remove the first 2 bytes (header) to simplify parsing
+	if len(data) < 2 {
+		fmt.Println("Data length is too short to contain header and IDs")
+		return nil
+	}
+	data = data[2:] // Remove the 2-byte header
+
+	// Define the size of each Beacon ID and RSSI
+	idSize := 16
+	rssiSize := 1
+
+	// Slice to hold the beacons
+	beacons := []Beacon{}
+
+	// Iterate over the data and extract Beacon IDs and their respective RSSI values
+	for i := 0; i+idSize+rssiSize <= len(data); {
+		// Extract Beacon ID
+		idBytes := data[i : i+idSize]
+
+		// Extract RSSI (next byte after the ID)
+		rssi := int8(data[i+idSize])
+
+		// Append the extracted ID and RSSI to the list
+		beacon := Beacon{
+			ID:   string(idBytes),
+			RSSI: rssi,
+		}
+		beacons = append(beacons, beacon)
+
+		// Update `i` to the start of the next Beacon ID, skipping RSSI byte and 1 additional byte for alignment
+		i += idSize + rssiSize + 1
+	}
+
+	return beacons
 }
 
 type HTTPServer struct {
