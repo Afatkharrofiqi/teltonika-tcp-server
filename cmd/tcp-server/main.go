@@ -360,7 +360,7 @@ func extractBeacons(rawData string) []Beacon {
 
 	// Remove the first 2 bytes (header) to simplify parsing
 	if len(data) < 2 {
-		fmt.Println("Data length is too short to contain header and IDs")
+		fmt.Printf(`Data length is too short to contain header and IDs. the data: %s`, data)
 		return nil
 	}
 	data = data[2:] // Remove the 2-byte header
