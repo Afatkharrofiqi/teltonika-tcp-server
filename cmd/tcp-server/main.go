@@ -276,7 +276,7 @@ func (r *TCPServer) handleConnection(conn net.Conn, db *gorm.DB) {
 			logger.Error.Printf("[%s]: marshaling error (%v)", logKey, err)
 		} else {
 			totalData := len(res.Packet.Data)
-			if totalData < 10 {
+			if totalData < 5 {
 				logger.Info.Printf("[%s]: ignore processing data, total data to small %d", logKey, totalData)
 				return
 			}
